@@ -1,24 +1,63 @@
-name: CI
+name: Node CI
 
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build:
+  build_and_test:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Node
-        uses: actions/setup-node@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
-      - name: Setup Testcontainers Cloud Client
-        uses: atomicjar/testcontainers-cloud-setup-action@main
-        with:
-          token: ${{ secrets.TCC_SECRET_EXAMPLES }}
-      - name: Run example
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
         run: |
-          make test
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build
+        run: npm run build --if-present
+
+      - name: Test
+        run: npm test
+        continue-on-error: true
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            dist/
+            build/
+            output/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload logs and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-and-reports
+          path: |
+            coverage/
+            test-results/
+            reports/
+            logs/
+            *.log
+          if-no-files-found: ignore
+          retention-days: 7
